@@ -3,6 +3,28 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
+# Load Provider Master List Data
+
+provider_master_list_file = "Providers Master List - 20241120.csv"
+
+provider_master_list_df = pd.read_csv(provider_master_list_file)
+
+# Specify the path to your Excel file
+employee_census_file_path = 'W-2 Employee Census_Currently Active.xlsx'
+
+# Load rows 7 to 270 (Excel row index is 1-based, but pandas is 0-based)
+# skiprows=6 will skip the first 6 rows (i.e., rows 1 to 6)
+# nrows=264 will read the next 264 rows (i.e., rows 7 to 270)
+employee_census_df = pd.read_excel(employee_census_file_path, skiprows=5, nrows=207, header=1) # 
+
+# Replace multiple spaces with a single space, if needed
+employee_census_df.columns = employee_census_df.columns.str.replace(r'\s+', ' ', regex=True).str.strip()
+
+# Convert 'Employee ID' column to string (text)
+employee_census_df['Employee ID'] = employee_census_df['Employee ID'].astype(str)
+
+
 # Load data (assuming the data preparation code is already processed as per the original code)
 wage_report_file = 'wage_report_oct_week1-2.xlsx'
 
@@ -54,6 +76,18 @@ wage_report_important_columns_df = wage_report_important_columns_df.dropna(
     subset=["Period End Date"]
 )
 
+### ******************* Assigning STATE to Wage Report ****************
+
+wage_report_important_columns_df['State from Census'] = wage_report_important_columns_df['Employee ID'].map(employee_census_df.set_index('Employee ID')['Default Tax Work State'])
+
+
+provider_master_list_df['FP&A Name'] = provider_master_list_df['FP&A Name'].str.upper()
+mapper = provider_master_list_df.drop_duplicates(subset='FP&A Name').set_index('FP&A Name')['State']
+wage_report_important_columns_df['State from Provider Master List'] = wage_report_important_columns_df['Employee Name'].map(mapper)
+
+### *********************************************************************
+
+
 # Create 'MM/YYYY Pay Only' period column as datetime
 wage_report_important_columns_df["MM/YYYY Pay Only"] = wage_report_important_columns_df[
     "Period End Date"
@@ -83,6 +117,27 @@ selected_date_range = st.sidebar.slider(
     value=(min_date, max_date),  # Default to full range
     format="MMM YYYY",  # Display format
 )
+
+###  *********************** Filtering by State *****************
+
+# Sidebar filter for "State" column
+unique_states_state = wage_report_regular_payroll_df['State from Census'].dropna().unique()
+selected_states_state = st.sidebar.multiselect(
+    "Select State(s) for 'State from Census' column",
+    options=["All"] + list(unique_states_state),
+    default="All",
+)
+
+# Sidebar filter for "State2" column
+unique_states_state2 = wage_report_regular_payroll_df['State from Provider Master List'].dropna().unique()
+selected_states_state2 = st.sidebar.multiselect(
+    "Select State(s) for 'State from Provider Master List' column",
+    options=["All"] + list(unique_states_state2),
+    default="All",
+)
+
+### **************************************************************
+
 
 # Filter DataFrame by selected date range
 filtered_df = wage_report_regular_payroll_df[
@@ -114,6 +169,16 @@ selected_job_category = st.sidebar.selectbox("Select Job Category", options=["Al
 selected_insperity_client_name = st.sidebar.selectbox("Select Insperity Client Name", options=["All"] + list(insperity_client_name))
 
 # Apply additional filters
+
+# Filter for "State" column
+if "All" not in selected_states_state:
+    filtered_df = filtered_df[filtered_df["State from Census"].isin(selected_states_state)]
+
+# Filter for "State2" column
+if "All" not in selected_states_state2:
+    filtered_df = filtered_df[filtered_df["State from Provider Master List"].isin(selected_states_state2)]
+
+
 if selected_job_title != "All":
     filtered_df = filtered_df[filtered_df["Job Title"] == selected_job_title]
 
@@ -192,4 +257,6 @@ st.pyplot(fig)
 
 # cd "D:/Personal/OneDrive/ALTEA/Dashboard Automations/HR Data/Wage Change Tracker/"
 
-# streamlit run "streamlit_lessdata_morefilter_w2_wage_change_tracker_20241124_v14.py"
+# streamlit run "streamlit_lessdata_morefilter_w2_wage_change_tracker_20241124_v15.py"
+
+# https://w2wagechangetrackerlimiteddata-9nxvzoxoegbaksecmmpczn.streamlit.app/
